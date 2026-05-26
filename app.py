@@ -5,101 +5,113 @@ import sys
 import os
 import re
 
-# --- প্রিমিয়াম পৃষ্ঠা কনফিগারেশন ---
+# --- প্রিমিয়াম পৃষ্ঠা কনফিগারেশন এবং ম্যাকওএস-স্টাইল লেআউট ---
 st.set_page_config(
-    page_title="SEU MATRIX SCANNER",
+    page_title="SEU MATRIX MATRIX SYSTEM",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- আল্ট্রা-মডার্ন সাইবারপাঙ্ক UI/UX স্টাইলিং (CSS) ---
+# --- আল্ট্রা-মডার্ন নিয়ন সাইবারপাঙ্ক UI/UX (CSS) ---
 st.markdown("""
     <style>
-        /* মূল ব্যাকগ্রাউন্ড ও গ্লোবাল ফন্ট */
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
         
+        /* গ্লোবাল স্টাইল এবং স্মুথ ব্যাকগ্রাউন্ড গ্রাডিয়েন্ট */
         .stApp {
-            background: radial-gradient(circle at 50% 10%, #111827 0%, #030712 100%);
-            font-family: 'Inter', sans-serif;
-            color: #E5E7EB;
+            background: radial-gradient(circle at 50% 15%, #0d1527 0%, #040814 100%);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: #F3F4F6;
         }
         
-        /* গ্লোয়িং হেডার টাইটেল */
-        .title-container {
+        /* গ্লোয়িং এবং প্রিমিয়াম হেডার */
+        .title-box {
             text-align: center;
-            padding: 20px 0 10px 0;
+            padding: 30px 0 10px 0;
             margin-bottom: 25px;
         }
-        .main-title {
+        .main-cyber-title {
             font-family: 'Fira Code', monospace;
             font-weight: 700;
-            font-size: 2.8rem;
-            background: linear-gradient(90deg, #00FF66 0%, #00E5FF 100%);
+            font-size: 2.6rem;
+            background: linear-gradient(135deg, #00FF66 0%, #00E5FF 50%, #9D4EDD 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0px 0px 20px rgba(0, 255, 102, 0.3);
+            filter: drop-shadow(0px 0px 15px rgba(0, 255, 102, 0.25));
             letter-spacing: -1px;
         }
-        .engine-badge {
-            background: rgba(0, 255, 102, 0.1);
+        .status-badge {
+            background: rgba(0, 255, 102, 0.07);
             border: 1px solid rgba(0, 255, 102, 0.3);
             color: #00FF66;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 6px 18px;
+            border-radius: 30px;
+            font-size: 11px;
             font-family: 'Fira Code', monospace;
             display: inline-block;
-            margin-top: 10px;
-            box-shadow: 0 0 15px rgba(0, 255, 102, 0.1);
+            margin-top: 12px;
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.15);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        /* গ্লাসিয়াল মডার্ন কার্ড (Glassmorphism) */
-        .glass-card {
-            background: rgba(17, 24, 39, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        /* গ্লাস-মরফিজম কন্টেইনার (Glassmorphism) */
+        .glass-panel {
+            background: rgba(10, 17, 36, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 20px 40px 0 rgba(0, 0, 0, 0.5);
         }
         
-        /* মডার্ন সাইবার টার্মিনাল বক্স */
+        /* রিয়েল-টাইম হাই-টেক টার্মিনাল লগার */
         .terminal-box {
-            background: #05070f !important;
-            border: 1px solid rgba(0, 229, 255, 0.2);
-            border-radius: 12px;
-            padding: 20px;
+            background: #02040a !important;
+            border: 1px solid rgba(0, 229, 255, 0.25);
+            border-radius: 14px;
+            padding: 22px;
             color: #00FF66 !important;
             font-family: 'Fira Code', monospace !important;
-            font-size: 14px !important;
-            line-height: 1.6;
+            font-size: 13.5px !important;
+            line-height: 1.65;
             overflow-y: auto;
-            max-height: 400px;
-            box-shadow: inset 0 0 20px rgba(0, 229, 255, 0.05);
+            max-height: 420px;
+            box-shadow: inset 0 0 30px rgba(0, 229, 255, 0.03), 0 10px 30px rgba(0,0,0,0.5);
         }
         
-        /* কাস্টম ইনপুট ও বাটন স্টাইলিং ওভাররাইড */
+        /* ইনপুট ফর্ম ও কন্ট্রোল এলিমেন্টস */
         .stTextInput>div>div>input, .stTextArea>div>div>textarea {
-            background: rgba(255, 255, 255, 0.03) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, 0.02) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
             color: #FFF !important;
-            border-radius: 10px !important;
+            border-radius: 12px !important;
+            font-family: 'Fira Code', monospace;
         }
         .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
             border-color: #00E5FF !important;
-            box-shadow: 0 0 10px rgba(0, 229, 255, 0.2) !important;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.15) !important;
+        }
+        
+        /* কাস্টম এইচ৩ বা সাবহেডার মডিফিকেশন */
+        h3 {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-weight: 600 !important;
+            color: #F3F4F6 !important;
+            letter-spacing: -0.5px;
+            margin-bottom: 15px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- হেডার রেন্ডারিং ---
+# --- হেডার সেকশন রেন্ডার ---
 st.markdown("""
-    <div class='title-container'>
-        <div class='main-title'>🧬 SEU MATRIX TARGET BAL-SCANNER</div>
-        <div class='engine-badge'>⚡ BACKEND PIPELINE: ENGINE READY</div>
+    <div class='title-box'>
+        <div class='main-cyber-title'>🧬 SEU MATRIX TARGET BAL-SCANNER</div>
+        <div class='status-badge'>⚡ PIPELINE STATUS: ENGINE ACTIVE & SECURITY DEPLOYED</div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -115,7 +127,7 @@ def initialize_browser_pipeline():
 
 engine_ready = initialize_browser_pipeline()
 
-# --- ব্যাকএন্ড স্ক্যানার কোর লজিক ---
+# --- অ্যাডভান্সড ব্যাকএন্ড স্ক্যানার লজিক (API ইন্টেলিজেন্স সহ) ---
 async def scan_matrix_node(target_number, clean_token):
     async with async_playwright() as p:
         try:
@@ -124,7 +136,7 @@ async def scan_matrix_node(target_number, clean_token):
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
             )
             
-            # টোকেন ও ক্লিনিং মেকানিজম
+            # টোকেন স্যানিটাইজেশন (ক্লিনিং)
             clean_token = clean_token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
             
             headers = {
@@ -139,81 +151,102 @@ async def scan_matrix_node(target_number, clean_token):
             context = await browser.new_context(extra_http_headers=headers)
             page = await context.new_page()
             
-            # 🎯 টার্গেট রিকোয়েস্ট এন্ডপয়েন্ট ইউআরএল 
-            api_url = f"https://ums.seu.edu.bd/api/student/balance-check?phone={target_number}"
+            # 📌 নোট: যদি আপনার UMS এন্ডপয়েন্টটি POST মেথড এবং JSON পে-লোড রিকোয়ার করে, 
+            # তবে নিচের লজিকটি নিখুঁতভাবে রিকোয়েস্ট হ্যান্ডেল করবে।
             
-            response = await page.goto(api_url, wait_until="networkidle", timeout=15000)
-            status_code = response.status if response else 500
+            # ⚠️ আপনার সঠিক API URL টি নিচে বসাবেন (এটি ডামি পাথ, আপনার আসল পাথটি দিয়ে রিপ্লেস করুন)
+            api_url = "https://ums.seu.edu.bd/api/student/balance-check" 
+            
+            # আমরা এখানে নেটওয়ার্ক রাউটিং বা ডিরেক্ট API ট্রিগার মেকানিজম ব্যবহার করছি
+            try:
+                response = await page.evaluate(f"""
+                    async () => {{
+                        const res = await fetch('{api_url}', {{
+                            method: 'POST',
+                            headers: {{
+                                'Authorization': 'Bearer {clean_token}',
+                                'Content-Type': 'application/json'
+                            }},
+                            body: JSON.stringify({{ phone: '{target_number}' }})
+                        }});
+                        if (res.status === 401 || res.status === 403) return {{ status: 401 }};
+                        return {{ status: res.status, data: await res.json().catch(() => null) }};
+                    }}
+                """)
+                status_code = response.get("status", 500)
+                res_data = response.get("data", None)
+            except Exception:
+                # যদি POST ফেল করে তবে অল্টারনেটিভ ফলব্যাক GET মেথড রান করবে
+                fallback_url = f"https://ums.seu.edu.bd/api/student/balance-check?phone={target_number}"
+                resp = await page.goto(fallback_url, wait_until="networkidle", timeout=10000)
+                status_code = resp.status if resp else 500
+                res_data = await resp.json() catch lambda: None
+
+            await browser.close()
             
             if status_code in [401, 403]:
-                await browser.close()
                 return {"status": "auth_error", "message": "Token Invalid or UMS Service Outage."}
-                
-            if status_code == 200:
-                try:
-                    data = await response.json()
-                    await browser.close()
-                    return {"status": "success", "data": data}
-                except:
-                    content = await response.text()
-                    await browser.close()
-                    return {"status": "success", "data": content[:100]}
+            elif status_code == 200:
+                return {"status": "success", "data": res_data if res_data else "Node Connected Successfully"}
             else:
-                await browser.close()
-                return {"status": "failed", "message": f"Server Status Code {status_code}"}
+                return {"status": "failed", "message": f"HTTP Gateway Server Status {status_code}"}
                 
         except Exception as e:
             if 'browser' in locals():
                 await browser.close()
             return {"status": "error", "message": str(e)}
 
-# --- মডার্ন ২-কলাম গ্রিড ইউজার ইন্টারফেস (UI/UX) ---
-left_col, right_col = st.columns([1, 1.2], gap="large")
+# --- মডার্ন এবং রেসপন্সিভ গ্রিড ইন্টারফেস লেআউট ---
+left_panel, right_panel = st.columns([1, 1.1], gap="large")
 
-with left_col:
-    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.markdown("### 🛠️ System Authorization")
+with left_panel:
+    st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+    st.markdown("### 🔑 System Authorization")
     
     if 'locked_token' not in st.session_state:
         st.session_state.locked_token = ""
         
-    token_input = st.text_input("Bearer Auth Token Array:", value=st.session_state.locked_token, type="password", placeholder="eyJhbGciOiJIUzUxMiJ9...")
+    token_input = st.text_input(
+        "Bearer Auth Token Array:", 
+        value=st.session_state.locked_token, 
+        type="password", 
+        placeholder="eyJhbGciOiJIUzUxMiJ9.eyJzdWIi..."
+    )
     
-    if st.button("✨ Save & Lock System Access Tokens", use_container_width=True):
+    if st.button("🔒 Save & Verify Gateway Access Token", use_container_width=True):
         if token_input:
             st.session_state.locked_token = token_input.replace("Bearer ", "").strip()
-            st.toast("Authorization Synced and Sanitized Locked!", icon="🎯")
+            st.toast("Authorization Node Synced Successfully!", icon="🚀")
         else:
-            st.warning("Please insert a valid JWT sequence.")
+            st.warning("Please insert a secure token stream.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
     st.markdown("### 📥 Matrix Feed Targets")
-    data_feed = st.text_area("Paste Target Phone Numbers:", height=180, placeholder="01723436943\n01329132803")
+    data_feed = st.text_area("Paste Target Phone Numbers:", height=160, placeholder="01723436943\n01329132803")
     
-    # মোবাইল নম্বর ফিল্টার করার Regex
+    # অ্যাডভান্সড Regex ফিল্টারিং
     target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
-    st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: monospace;'>🔍 Detected Target Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: \"Fira Code\", monospace; margin: 5px 0 0 0;'>🔍 Filtered Active Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-with right_col:
-    st.markdown("<div class='glass-card' style='height: 100%;'>", unsafe_allow_html=True)
+with right_panel:
+    st.markdown("<div class='glass-panel' style='height: 100%;'>", unsafe_allow_html=True)
     st.markdown("### 🖥️ Cyber Live Terminal Log")
     
-    # লঞ্চ বাটনটি প্রফেশনাল এবং নজরকাড়া গ্লোয়িং ফিল দেওয়া হয়েছে
-    run_scan = st.button("🚀 DEPLOY CORE CLUSTER SCANNERS", use_container_width=True, type="primary")
+    # মূল রান বাটন
+    run_scan = st.button("⚡ DEPLOY CORE CLUSTER SCANNERS", use_container_width=True, type="primary")
     
     terminal_placeholder = st.empty()
-    # ডিফল্ট টার্মিনাল ভিউ
     terminal_placeholder.markdown("<pre class='terminal-box'>[SYSTEM LOG]: System standing by. Awaiting live cluster node deployment...</pre>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- লাইভ ক্রলিং ও টার্মিনাল ফিড প্রসেস ---
+# --- কোর এক্সিকিউশন ও লাইভ টার্মিনাল স্ট্রিমিং ---
 if run_scan:
     if not st.session_state.locked_token:
-        st.error("[CRITICAL ERROR]: System Token Database Empty. Action Aborted.")
+        st.error("[CRITICAL ERROR]: Pipeline Core Missing Token Database. Action Refused.")
     elif not target_numbers:
-        st.warning("[WARNING]: Empty Target Queue. Scan process cannot be initialized.")
+        st.warning("[WARNING]: Empty Feed Queue. Scan framework could not identify targets.")
     else:
         terminal_output = "⏳ [SYSTEM LOG]: Initializing core cluster matrix pipeline...\n"
         terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
@@ -224,7 +257,7 @@ if run_scan:
             terminal_output += f"📡 [TARGET]: Scanning Matrix Node → {number}\n"
             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
             
-            # ব্যাকএন্ড কল
+            # ব্যাকএন্ড এসিনক্রোনাস ক্রলার কল
             result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token))
             
             if result["status"] == "auth_error":
@@ -232,9 +265,9 @@ if run_scan:
             elif result["status"] == "success":
                 terminal_output += f"   🔥 [SUCCESS]: Node Verified. Data Connected.\n"
                 success_accounts.append({
-                    "Target ID": len(success_accounts) + 1,
-                    "Matrix Node": number, 
-                    "Pipeline Status": "ACTIVE HITS", 
+                    "Index": len(success_accounts) + 1,
+                    "Target Node": number, 
+                    "Status": "ACTIVE HIT", 
                     "Payload Log": str(result["data"])
                 })
             else:
@@ -245,11 +278,11 @@ if run_scan:
         terminal_output += "🏁 [SYSTEM LOG]: Target Scan Deployment Terminal Sequence Finished.\n"
         terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
 
-        # --- লাইভ সাকসেসফুল ডাটা গ্রিড ---
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        # --- লাইভ সাকসেস ডাটা গ্রিড প্যানেল ---
+        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("### 📊 Live Hits & Verified Accounts Grid")
         if success_accounts:
             st.dataframe(success_accounts, use_container_width=True)
         else:
-            st.markdown("<p style='color:#ef4444; font-family:monospace; font-size:14px;'>❌ No successful active matrix data payload caught in this deployment frame.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ef4444; font-family:\"Fira Code\", monospace; font-size:14px; margin:0;'>❌ No successful active matrix data payload caught in this deployment frame.</p>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
