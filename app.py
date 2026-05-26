@@ -5,49 +5,103 @@ import sys
 import os
 import re
 
-# --- পৃষ্ঠা কনফিগারেশন এবং থিম (ইউজার ইন্টারফেস) ---
+# --- প্রিমিয়াম পৃষ্ঠা কনফিগারেশন ---
 st.set_page_config(
-    page_title="SEU MATRIX TARGET BAL-SCANNER",
+    page_title="SEU MATRIX SCANNER",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# আপনার টার্মিনালের ম্যাট্রিক্স গ্রিন থিম ও ডার্ক মোড সিএসএস
+# --- আল্ট্রা-মডার্ন সাইবারপাঙ্ক UI/UX স্টাইলিং (CSS) ---
 st.markdown("""
     <style>
-        body { background-color: #0e1117; }
-        .terminal-box {
-            background-color: #000000 !important;
-            color: #00FF00 !important;
-            font-family: 'Courier New', Courier, monospace !important;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #1f2937;
-            line-height: 1.6;
+        /* মূল ব্যাকগ্রাউন্ড ও গ্লোবাল ফন্ট */
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;500;700&display=swap');
+        
+        .stApp {
+            background: radial-gradient(circle at 50% 10%, #111827 0%, #030712 100%);
+            font-family: 'Inter', sans-serif;
+            color: #E5E7EB;
+        }
+        
+        /* গ্লোয়িং হেডার টাইটেল */
+        .title-container {
+            text-align: center;
+            padding: 20px 0 10px 0;
+            margin-bottom: 25px;
+        }
+        .main-title {
+            font-family: 'Fira Code', monospace;
+            font-weight: 700;
+            font-size: 2.8rem;
+            background: linear-gradient(90deg, #00FF66 0%, #00E5FF 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 0px 20px rgba(0, 255, 102, 0.3);
+            letter-spacing: -1px;
+        }
+        .engine-badge {
+            background: rgba(0, 255, 102, 0.1);
+            border: 1px solid rgba(0, 255, 102, 0.3);
+            color: #00FF66;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-family: 'Fira Code', monospace;
+            display: inline-block;
+            margin-top: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.1);
+        }
+        
+        /* গ্লাসিয়াল মডার্ন কার্ড (Glassmorphism) */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 25px;
             margin-bottom: 20px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
-        .header-title {
-            color: #00FF00;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 0px;
+        
+        /* মডার্ন সাইবার টার্মিনাল বক্স */
+        .terminal-box {
+            background: #05070f !important;
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            color: #00FF66 !important;
+            font-family: 'Fira Code', monospace !important;
+            font-size: 14px !important;
+            line-height: 1.6;
+            overflow-y: auto;
+            max-height: 400px;
+            box-shadow: inset 0 0 20px rgba(0, 229, 255, 0.05);
         }
-        .sub-pipeline {
-            text-align: center;
-            color: #888;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            margin-bottom: 30px;
+        
+        /* কাস্টম ইনপুট ও বাটন স্টাইলিং ওভাররাইড */
+        .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #FFF !important;
+            border-radius: 10px !important;
+        }
+        .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
+            border-color: #00E5FF !important;
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.2) !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 class='header-title'>🧬 SEU MATRIX TARGET BAL-SCANNER</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub-pipeline'>[ BACKEND PIPELINE: ENGINE READY ]</p>", unsafe_allow_html=True)
+# --- হেডার রেন্ডারিং ---
+st.markdown("""
+    <div class='title-container'>
+        <div class='main-title'>🧬 SEU MATRIX TARGET BAL-SCANNER</div>
+        <div class='engine-badge'>⚡ BACKEND PIPELINE: ENGINE READY</div>
+    </div>
+""", unsafe_allow_html=True)
 
 # --- প্লে-রাইট ব্রাউজার ড্রাইভার লোডার ---
 @st.cache_resource
@@ -65,21 +119,19 @@ engine_ready = initialize_browser_pipeline()
 async def scan_matrix_node(target_number, clean_token):
     async with async_playwright() as p:
         try:
-            # ব্যাকগ্রাউন্ড মোডে ব্রাউজার রান করা হচ্ছে
             browser = await p.chromium.launch(
                 headless=True,
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
             )
             
-            # টোকেন থেকে অতিরিক্ত কোটেশন বা স্পেস থাকলে তা আরও গভীরভাবে ক্লিন করার লজিক
+            # টোকেন ও ক্লিনিং মেকানিজম
             clean_token = clean_token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
             
-            # স্ট্যান্ডার্ড হেডার সেটআপ যা UMS গেটওয়ে রিকোয়েস্ট এক্সেপ্ট করে
             headers = {
                 "Authorization": f"Bearer {clean_token}",
                 "Accept": "application/json, text/plain, */*",
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Content-Type": "application/json;charset=UTF-8",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Origin": "https://ums.seu.edu.bd",
                 "Referer": "https://ums.seu.edu.bd/"
             }
@@ -87,13 +139,12 @@ async def scan_matrix_node(target_number, clean_token):
             context = await browser.new_context(extra_http_headers=headers)
             page = await context.new_page()
             
-            # 🎯 টার্গেট রিকোয়েস্ট এন্ডপয়েন্ট ইউআরএল (প্রয়োজন অনুযায়ী পরিবর্তন করে নেবেন)
+            # 🎯 টার্গেট রিকোয়েস্ট এন্ডপয়েন্ট ইউআরএল 
             api_url = f"https://ums.seu.edu.bd/api/student/balance-check?phone={target_number}"
             
             response = await page.goto(api_url, wait_until="networkidle", timeout=15000)
             status_code = response.status if response else 500
             
-            # টোকেন ভ্যালিডেশন চেক এবং রেসপন্স এনালাইসিস
             if status_code in [401, 403]:
                 await browser.close()
                 return {"status": "auth_error", "message": "Token Invalid or UMS Service Outage."}
@@ -116,76 +167,89 @@ async def scan_matrix_node(target_number, clean_token):
                 await browser.close()
             return {"status": "error", "message": str(e)}
 
-# --- ফ্রন্টএন্ড প্যানেল ইন্টারফেস ---
-st.markdown("### 🖥️ Cyber Live Matrix Terminal")
+# --- মডার্ন ২-কলাম গ্রিড ইউজার ইন্টারফেস (UI/UX) ---
+left_col, right_col = st.columns([1, 1.2], gap="large")
 
-# টোকেন ইনপুট সেশন স্টেট ম্যানেজমেন্ট
-if 'locked_token' not in st.session_state:
-    st.session_state.locked_token = ""
-
-token_input = st.text_input("⚙️ System Authorization (Bearer Auth Token):", value=st.session_state.locked_token, type="password")
-
-col1, col2 = st.columns([1.5, 5])
-with col1:
-    if st.button("Save & Lock Token"):
-        if token_input:
-            # ইনপুট থেকে Bearer এবং স্পেস ক্লিয়ার করে সেশন স্টেটে সেভ করা
-            st.session_state.locked_token = token_input.replace("Bearer ", "").strip()
-            st.success("Authorization Synced Successfully!")
-        else:
-            st.warning("Input a valid token array.")
-
-st.markdown("---")
-
-# টার্গেট ডাটা ইনপুট
-data_feed = st.text_area("📥 Data Feed Input (Paste Target Numbers):", height=150, placeholder="017XXXXXXXX\n013XXXXXXXX")
-
-# বাংলাদেশী ফরম্যাটের মোবাইল নম্বর এক্সট্রাক্ট করার রেগুলার এক্সপ্রেশন
-target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
-
-# কোর পাইপলাইন এক্সিকিউশন
-if st.button("🚀 Deploy Core Cluster Matrix Scan"):
-    if not st.session_state.locked_token:
-        st.error("[CRITICAL ERROR]: No Security Token Found. Please lock authorization token first.")
-    elif not target_numbers:
-        st.warning("[WARNING]: Empty matrix feed. No valid numbers detected.")
-    else:
-        terminal_output = "[SYSTEM LOG]: Initializing core cluster matrix pipeline for 7 nodes...\n"
+with left_col:
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.markdown("### 🛠️ System Authorization")
+    
+    if 'locked_token' not in st.session_state:
+        st.session_state.locked_token = ""
         
-        # রিয়েল-টাইম টার্মিনাল আপডেট করার জন্য প্লেসহোল্ডার
-        terminal_placeholder = st.empty()
+    token_input = st.text_input("Bearer Auth Token Array:", value=st.session_state.locked_token, type="password", placeholder="eyJhbGciOiJIUzUxMiJ9...")
+    
+    if st.button("✨ Save & Lock System Access Tokens", use_container_width=True):
+        if token_input:
+            st.session_state.locked_token = token_input.replace("Bearer ", "").strip()
+            st.toast("Authorization Synced and Sanitized Locked!", icon="🎯")
+        else:
+            st.warning("Please insert a valid JWT sequence.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.markdown("### 📥 Matrix Feed Targets")
+    data_feed = st.text_area("Paste Target Phone Numbers:", height=180, placeholder="01723436943\n01329132803")
+    
+    # মোবাইল নম্বর ফিল্টার করার Regex
+    target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
+    st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: monospace;'>🔍 Detected Target Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with right_col:
+    st.markdown("<div class='glass-card' style='height: 100%;'>", unsafe_allow_html=True)
+    st.markdown("### 🖥️ Cyber Live Terminal Log")
+    
+    # লঞ্চ বাটনটি প্রফেশনাল এবং নজরকাড়া গ্লোয়িং ফিল দেওয়া হয়েছে
+    run_scan = st.button("🚀 DEPLOY CORE CLUSTER SCANNERS", use_container_width=True, type="primary")
+    
+    terminal_placeholder = st.empty()
+    # ডিফল্ট টার্মিনাল ভিউ
+    terminal_placeholder.markdown("<pre class='terminal-box'>[SYSTEM LOG]: System standing by. Awaiting live cluster node deployment...</pre>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- লাইভ ক্রলিং ও টার্মিনাল ফিড প্রসেস ---
+if run_scan:
+    if not st.session_state.locked_token:
+        st.error("[CRITICAL ERROR]: System Token Database Empty. Action Aborted.")
+    elif not target_numbers:
+        st.warning("[WARNING]: Empty Target Queue. Scan process cannot be initialized.")
+    else:
+        terminal_output = "⏳ [SYSTEM LOG]: Initializing core cluster matrix pipeline...\n"
         terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
         
         success_accounts = []
         
-        # নোড স্ক্যান লুপ
         for number in target_numbers:
-            terminal_output += f"[TARGET]: Scanning Matrix Node → {number}\n"
+            terminal_output += f"📡 [TARGET]: Scanning Matrix Node → {number}\n"
             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
             
-            # ব্যাকএন্ড ফাংশন রান
+            # ব্যাকএন্ড কল
             result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token))
             
             if result["status"] == "auth_error":
-                terminal_output += f" ├─ [AUTH MISM_ERR]: {result['message']}\n"
+                terminal_output += f"   ❌ [AUTH MISM_ERR]: Token Invalid or UMS Service Outage.\n"
             elif result["status"] == "success":
-                terminal_output += f" ├─ [SUCCESS]: Node Verified. Data Payload Connected.\n"
+                terminal_output += f"   🔥 [SUCCESS]: Node Verified. Data Connected.\n"
                 success_accounts.append({
-                    "Node Target": number, 
-                    "Status": "Verified Active", 
-                    "Payload": str(result["data"])
+                    "Target ID": len(success_accounts) + 1,
+                    "Matrix Node": number, 
+                    "Pipeline Status": "ACTIVE HITS", 
+                    "Payload Log": str(result["data"])
                 })
             else:
-                terminal_output += f" ├─ [NODE_ERR]: {result['message']}\n"
+                terminal_output += f"   ⚠️ [NODE_ERR]: {result['message']}\n"
                 
             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
-        
-        terminal_output += "[SYSTEM LOG]: Target Scan Deployment Terminal Sequence Over.\n"
+            
+        terminal_output += "🏁 [SYSTEM LOG]: Target Scan Deployment Terminal Sequence Finished.\n"
         terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
-        
-        # লাইভ হিট গ্রিড সেকশন
+
+        # --- লাইভ সাকসেসফুল ডাটা গ্রিড ---
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
         st.markdown("### 📊 Live Hits & Verified Accounts Grid")
         if success_accounts:
             st.dataframe(success_accounts, use_container_width=True)
         else:
-            st.markdown("<p style='color:#ff4b4b; font-family:monospace;'>No successful positive accounts registered yet in this session matrix.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ef4444; font-family:monospace; font-size:14px;'>❌ No successful active matrix data payload caught in this deployment frame.</p>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
