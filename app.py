@@ -7,7 +7,7 @@ import re
 
 # --- প্রিমিয়াম পৃষ্ঠা কনফিগারেশন এবং ম্যাকওএস-স্টাইল লেআউট ---
 st.set_page_config(
-    page_title="SEU MATRIX MATRIX SYSTEM",
+    page_title="SEU MATRIX SYSTEM",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -96,7 +96,6 @@ st.markdown("""
             box-shadow: 0 0 15px rgba(0, 229, 255, 0.15) !important;
         }
         
-        /* কাস্টম এইচ৩ বা সাবহেডার মডিফিকেশন */
         h3 {
             font-family: 'Plus Jakarta Sans', sans-serif !important;
             font-weight: 600 !important;
@@ -107,7 +106,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- হেডার সেকশন রেন্ডার ---
 st.markdown("""
     <div class='title-box'>
         <div class='main-cyber-title'>🧬 SEU MATRIX TARGET BAL-SCANNER</div>
@@ -115,7 +113,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- প্লে-রাইট ব্রাউজার ড্রাইভার লোডার ---
 @st.cache_resource
 def initialize_browser_pipeline():
     try:
@@ -127,7 +124,7 @@ def initialize_browser_pipeline():
 
 engine_ready = initialize_browser_pipeline()
 
-# --- অ্যাডভান্সড ব্যাকএন্ড স্ক্যানার লজিক (API ইন্টেলিজেন্স সহ) ---
+# --- ব্যাকএন্ড স্ক্যানার কোর লজিক ---
 async def scan_matrix_node(target_number, clean_token):
     async with async_playwright() as p:
         try:
@@ -136,7 +133,6 @@ async def scan_matrix_node(target_number, clean_token):
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
             )
             
-            # টোকেন স্যানিটাইজেশন (ক্লিনিং)
             clean_token = clean_token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
             
             headers = {
@@ -151,13 +147,9 @@ async def scan_matrix_node(target_number, clean_token):
             context = await browser.new_context(extra_http_headers=headers)
             page = await context.new_page()
             
-            # 📌 নোট: যদি আপনার UMS এন্ডপয়েন্টটি POST মেথড এবং JSON পে-লোড রিকোয়ার করে, 
-            # তবে নিচের লজিকটি নিখুঁতভাবে রিকোয়েস্ট হ্যান্ডেল করবে।
-            
-            # ⚠️ আপনার সঠিক API URL টি নিচে বসাবেন (এটি ডামি পাথ, আপনার আসল পাথটি দিয়ে রিপ্লেস করুন)
             api_url = "https://ums.seu.edu.bd/api/student/balance-check" 
             
-            # আমরা এখানে নেটওয়ার্ক রাউটিং বা ডিরেক্ট API ট্রিগার মেকানিজম ব্যবহার করছি
+            # মেথড হ্যান্ডলিং রি-রাইট (সিনট্যাক্স ফিক্সড)
             try:
                 response = await page.evaluate(f"""
                     async () => {{
@@ -176,11 +168,15 @@ async def scan_matrix_node(target_number, clean_token):
                 status_code = response.get("status", 500)
                 res_data = response.get("data", None)
             except Exception:
-                # যদি POST ফেল করে তবে অল্টারনেটিভ ফলব্যাক GET মেথড রান করবে
+                # প্রোপার পাইথনিক ফলব্যাক মেকানিজম
                 fallback_url = f"https://ums.seu.edu.bd/api/student/balance-check?phone={target_number}"
-                resp = await page.goto(fallback_url, wait_until="networkidle", timeout=10000)
-                status_code = resp.status if resp else 500
-                res_data = await resp.json() catch lambda: None
+                try:
+                    resp = await page.goto(fallback_url, wait_until="networkidle", timeout=10000)
+                    status_code = resp.status if resp else 500
+                    res_data = await resp.json()
+                except Exception:
+                    status_code = 500
+                    res_data = None
 
             await browser.close()
             
@@ -225,7 +221,6 @@ with left_panel:
     st.markdown("### 📥 Matrix Feed Targets")
     data_feed = st.text_area("Paste Target Phone Numbers:", height=160, placeholder="01723436943\n01329132803")
     
-    # অ্যাডভান্সড Regex ফিল্টারিং
     target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
     st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: \"Fira Code\", monospace; margin: 5px 0 0 0;'>🔍 Filtered Active Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -234,7 +229,6 @@ with right_panel:
     st.markdown("<div class='glass-panel' style='height: 100%;'>", unsafe_allow_html=True)
     st.markdown("### 🖥️ Cyber Live Terminal Log")
     
-    # মূল রান বাটন
     run_scan = st.button("⚡ DEPLOY CORE CLUSTER SCANNERS", use_container_width=True, type="primary")
     
     terminal_placeholder = st.empty()
@@ -257,7 +251,6 @@ if run_scan:
             terminal_output += f"📡 [TARGET]: Scanning Matrix Node → {number}\n"
             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
             
-            # ব্যাকএন্ড এসিনক্রোনাস ক্রলার কল
             result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token))
             
             if result["status"] == "auth_error":
