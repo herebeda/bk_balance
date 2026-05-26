@@ -4,6 +4,7 @@ from playwright.async_api import async_playwright
 import sys
 import os
 import re
+import json
 
 # --- প্রিমিয়াম পৃষ্ঠা কনফিগারেশন এবং ম্যাকওএস-স্টাইল লেআউট ---
 st.set_page_config(
@@ -18,14 +19,12 @@ st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
         
-        /* গ্লোবাল স্টাইল এবং স্মুথ ব্যাকগ্রাউন্ড গ্রাডিয়েন্ট */
         .stApp {
             background: radial-gradient(circle at 50% 15%, #0d1527 0%, #040814 100%);
             font-family: 'Plus Jakarta Sans', sans-serif;
             color: #F3F4F6;
         }
         
-        /* গ্লোয়িং এবং প্রিমিয়াম হেডার */
         .title-box {
             text-align: center;
             padding: 30px 0 10px 0;
@@ -56,7 +55,6 @@ st.markdown("""
             letter-spacing: 1px;
         }
         
-        /* গ্লাস-মরফিজম কন্টেইনার (Glassmorphism) */
         .glass-panel {
             background: rgba(10, 17, 36, 0.7);
             backdrop-filter: blur(16px);
@@ -68,7 +66,6 @@ st.markdown("""
             box-shadow: 0 20px 40px 0 rgba(0, 0, 0, 0.5);
         }
         
-        /* রিয়েল-টাইম হাই-টেক টার্মিনাল লগার */
         .terminal-box {
             background: #02040a !important;
             border: 1px solid rgba(0, 229, 255, 0.25);
@@ -79,12 +76,11 @@ st.markdown("""
             font-size: 13.5px !important;
             line-height: 1.65;
             overflow-y: auto;
-            max-height: 420px;
+            max-height: 520px;
             box-shadow: inset 0 0 30px rgba(0, 229, 255, 0.03), 0 10px 30px rgba(0,0,0,0.5);
         }
         
-        /* ইনপুট ফর্ম ও কন্ট্রোল এলিমেন্টস */
-        .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div {
             background: rgba(255, 255, 255, 0.02) !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             color: #FFF !important;
@@ -124,8 +120,8 @@ def initialize_browser_pipeline():
 
 engine_ready = initialize_browser_pipeline()
 
-# --- ব্যাকএন্ড স্ক্যানার কোর লজিক ---
-async def scan_matrix_node(target_number, clean_token):
+# --- অ্যাডভান্সড ডাইনামিক ব্যাকএন্ড স্ক্যানার লজিক ---
+async def scan_matrix_node(target_number, clean_token, api_endpoint, req_method, raw_payload_template):
     async with async_playwright() as p:
         try:
             browser = await p.chromium.launch(
@@ -147,33 +143,42 @@ async def scan_matrix_node(target_number, clean_token):
             context = await browser.new_context(extra_http_headers=headers)
             page = await context.new_page()
             
-            api_url = "https://ums.seu.edu.bd/api/student/balance-check" 
-            
-            # মেথড হ্যান্ডলিং রি-রাইট (সিনট্যাক্স ফিক্সড)
-            try:
-                response = await page.evaluate(f"""
-                    async () => {{
-                        const res = await fetch('{api_url}', {{
-                            method: 'POST',
-                            headers: {{
-                                'Authorization': 'Bearer {clean_token}',
-                                'Content-Type': 'application/json'
-                            }},
-                            body: JSON.stringify({{ phone: '{target_number}' }})
-                        }});
-                        if (res.status === 401 || res.status === 403) return {{ status: 401 }};
-                        return {{ status: res.status, data: await res.json().catch(() => null) }};
-                    }}
-                """)
-                status_code = response.get("status", 500)
-                res_data = response.get("data", None)
-            except Exception:
-                # প্রোপার পাইথনিক ফলব্যাক মেকানিজম
-                fallback_url = f"https://ums.seu.edu.bd/api/student/balance-check?phone={target_number}"
+            # মেথড অনুযায়ী ডাইনামিক ইউআরএল বা পে-লোড হ্যান্ডলিং
+            if req_method == "GET":
+                # যদি ইউআরএল এর শেষে নম্বর প্যারামিটার হিসেবে যুক্ত করতে হয়
+                final_url = api_endpoint.replace("{number}", target_number) if "{number}" in api_endpoint else f"{api_endpoint}?phone={target_number}"
                 try:
-                    resp = await page.goto(fallback_url, wait_until="networkidle", timeout=10000)
+                    resp = await page.goto(final_url, wait_until="networkidle", timeout=12000)
                     status_code = resp.status if resp else 500
                     res_data = await resp.json()
+                except Exception:
+                    status_code = 500
+                    res_data = None
+            else:
+                # POST মেথডের জন্য কাস্টম পে-লোড জেনারেট করা
+                processed_payload = raw_payload_template.replace("{number}", target_number)
+                try:
+                    payload_json = json.loads(processed_payload)
+                except Exception:
+                    payload_json = {"phone": target_number}
+                
+                try:
+                    response = await page.evaluate(f"""
+                        async () => {{
+                            const res = await fetch('{api_endpoint}', {{
+                                method: 'POST',
+                                headers: {{
+                                    'Authorization': 'Bearer {clean_token}',
+                                    'Content-Type': 'application/json'
+                                }},
+                                body: JSON.stringify({json.dumps(payload_json)})
+                            }});
+                            if (res.status === 401 || res.status === 403) return {{ status: res.status }};
+                            return {{ status: res.status, data: await res.json().catch(() => null) }};
+                        }}
+                    """)
+                    status_code = response.get("status", 500)
+                    res_data = response.get("data", None)
                 except Exception:
                     status_code = 500
                     res_data = None
@@ -197,7 +202,7 @@ left_panel, right_panel = st.columns([1, 1.1], gap="large")
 
 with left_panel:
     st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-    st.markdown("### 🔑 System Authorization")
+    st.markdown("### 🔑 System Authorization & Endpoint")
     
     if 'locked_token' not in st.session_state:
         st.session_state.locked_token = ""
@@ -209,17 +214,25 @@ with left_panel:
         placeholder="eyJhbGciOiJIUzUxMiJ9.eyJzdWIi..."
     )
     
-    if st.button("🔒 Save & Verify Gateway Access Token", use_container_width=True):
+    # 🌟 নতুন ডাইনামিক ফিল্ডসমূহ (এন্ডপয়েন্ট টিউনিংয়ের জন্য)
+    api_endpoint = st.text_input("📡 Target API Endpoint Gateway:", value="https://ums-api-service.seu.edu.bd/accounts/v/2.0.0/online-payment/bkash-pay")
+    req_method = st.selectbox("🌐 HTTP Request Method:", ["POST", "GET"])
+    
+    raw_payload_template = ""
+    if req_method == "POST":
+        raw_payload_template = st.text_area("📦 Custom JSON Payload (Use {number} as placeholder):", value='{\n  "amount": 2000.0,\n  "gateway": "bkash",\n  "initiator": "online-payment",\n  "actionUrl": null,\n  "applicationApply": {\n    "onlineApplicationType": null,\n    "urgentApplication": null,\n    "mobile": "{number}",\n    "email": null,\n    "copies": null\n  }\n}', height=160)
+    
+    if st.button("🔒 Save & Verify Gateway Access Engine", use_container_width=True):
         if token_input:
             st.session_state.locked_token = token_input.replace("Bearer ", "").strip()
-            st.toast("Authorization Node Synced Successfully!", icon="🚀")
+            st.toast("Authorization and Endpoint Configurations Latched!", icon="🚀")
         else:
             st.warning("Please insert a secure token stream.")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
     st.markdown("### 📥 Matrix Feed Targets")
-    data_feed = st.text_area("Paste Target Phone Numbers:", height=160, placeholder="01723436943\n01329132803")
+    data_feed = st.text_area("Paste Target Phone Numbers:", height=120, placeholder="01723436943\n01329132803")
     
     target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
     st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: \"Fira Code\", monospace; margin: 5px 0 0 0;'>🔍 Filtered Active Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
@@ -251,7 +264,8 @@ if run_scan:
             terminal_output += f"📡 [TARGET]: Scanning Matrix Node → {number}\n"
             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
             
-            result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token))
+            # ডাইনামিক মেথডসহ ব্যাকএন্ড ক্রলার এক্সিকিউশন
+            result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token, api_endpoint.strip(), req_method, raw_payload_template))
             
             if result["status"] == "auth_error":
                 terminal_output += f"   ❌ [AUTH MISM_ERR]: Token Invalid or UMS Service Outage.\n"
