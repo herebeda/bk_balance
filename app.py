@@ -125,7 +125,7 @@ def clean_and_parse_numbers(raw_input):
                 valid_numbers.append(digits_only)
     return valid_numbers
 
-# --- এপিআই লিঙ্ক জেনারেটর ফাংশন (উন্নত এরর হ্যান্ডলিং সহ) ---
+# --- জেনুইন ব্রাউজার হেডার স্পুফিং সহ এপিআই লিঙ্ক জেনারেটর ---
 def get_seu_bkash_url(mobile, amount, token):
     try:
         url = "https://ums-api-service.seu.edu.bd/accounts/v/2.0.0/online-payment/bkash-pay"
@@ -143,19 +143,33 @@ def get_seu_bkash_url(mobile, amount, token):
             }
         }
         
-        # টোকেন স্যানিটাইজেশন (সব ধরণের এক্সট্রা কোটেশন ও ডাবল বিয়ারার রিমুভ করবে)
         clean_token = token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
         auth_header = f"Bearer {clean_token}"
 
+        # 403 বাইপাস করার জন্য ফুল ব্রাউজার সিগনেচার হেডারস
         headers = {
-            "Content-Type": "application/json",
+            "Host": "ums-api-service.seu.edu.bd",
+            "Connection": "keep-alive",
+            "Accept": "application/json, text/plain, */*",
             "Authorization": auth_header,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Content-Type": "application/json",
             "Origin": "https://ums.seu.edu.bd",
+            "X-Requested-With": "XMLHttpRequest",
+            "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Site": "same-site",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
             "Referer": "https://ums.seu.edu.bd/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "en-US,en;q=0.9,bn;q=0.8"
         }
         
-        response = requests.post(url, json=payload, headers=headers, timeout=12)
+        # সেশন ব্যবহার করে সরাসরি রিকোয়েস্ট পাঠানো
+        session = requests.Session()
+        response = session.post(url, json=payload, headers=headers, timeout=12)
         
         if response.status_code == 200:
             result = response.json()
@@ -258,7 +272,7 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
 
             # ১. প্রথম ক্রাইটেরিয়া চেকিং লুপ
             retry_count = 0
-            while retry_count < 5:  # সর্বোচ্চ ৫ বার ট্রাই করবে একটি নোডের জন্য অবিরত লুপ এড়াতে
+            while retry_count < 5:  
                 api_res = get_seu_bkash_url(number, MIN_AMOUNT, token)
                 
                 if api_res["status"] != "success":
@@ -287,7 +301,7 @@ async def start_pipeline_scan(target_numbers, token, terminal_placeholder):
                     continue
             
             if retry_count >= 5:
-                terminal_output += f"  ❌ [NODE_ABORTED]: Gateway link creation failing continuously.\n"
+                terminal_output += f"  ❌ [NODE_ABORTED]: Firewall Block or Expired Token.\n"
                 terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
 
             # ২. বাইনারি সার্চ লুপ
