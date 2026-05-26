@@ -13,37 +13,46 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ডার্ক মোড এবং ম্যাকওএস-স্টাইল প্রফেশনাল টার্মিনাল সিএসএস (CSS)
+# আপনার টার্মিনালের ম্যাট্রিক্স গ্রিন থিম ও ডার্ক মোড সিএসএস
 st.markdown("""
     <style>
-        .reportview-container { background: #0e1117; }
+        body { background-color: #0e1117; }
         .terminal-box {
-            background-color: #000000;
-            color: #00FF00;
-            font-family: 'Courier New', Courier, monospace;
-            padding: 15px;
+            background-color: #000000 !important;
+            color: #00FF00 !important;
+            font-family: 'Courier New', Courier, monospace !important;
+            padding: 20px;
             border-radius: 8px;
-            border: 1px solid #333;
-            line-height: 1.5;
+            border: 1px solid #1f2937;
+            line-height: 1.6;
             margin-bottom: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
         .header-title {
             color: #00FF00;
             font-family: 'Courier New', monospace;
             font-weight: bold;
             text-align: center;
+            margin-bottom: 0px;
+        }
+        .sub-pipeline {
+            text-align: center;
+            color: #888;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 30px;
         }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='header-title'>🧬 SEU MATRIX TARGET BAL-SCANNER</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#888;'>[ BACKEND PIPELINE: ENGINE READY ]</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-pipeline'>[ BACKEND PIPELINE: ENGINE READY ]</p>", unsafe_allow_html=True)
 
-# --- প্লে-রাইট ব্রাউজার ড্রাইভার লোডার (রুট পারমিশন ছাড়া নিরাপদ সেটাপ) ---
+# --- প্লে-রাইট ব্রাউজার ড্রাইভার লোডার ---
 @st.cache_resource
 def initialize_browser_pipeline():
     try:
-        # শুধুমাত্র প্লে-রাইটের আইসোলেটেড ক্রোমিয়াম বাইনারি নামাবে, ওএস সিস্টেমে হাত দেবে না
         os.system(f"{sys.executable} -m playwright install chromium")
         return True
     except Exception as e:
@@ -52,17 +61,20 @@ def initialize_browser_pipeline():
 
 engine_ready = initialize_browser_pipeline()
 
-# --- ব্যাকএন্ড স্ক্যানার কোর লজিক (API/Browser request) ---
+# --- ব্যাকএন্ড স্ক্যানার কোর লজিক ---
 async def scan_matrix_node(target_number, clean_token):
     async with async_playwright() as p:
         try:
-            # হেডলেস ব্রাউজার লঞ্চ (উইন্ডো ছাড়া ব্যাকগ্রাউন্ডে চলবে)
+            # ব্যাকগ্রাউন্ড মোডে ব্রাউজার রান করা হচ্ছে
             browser = await p.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
             )
             
-            # নিখুঁত হেডার কনফিগারেশন এবং টোকেন ইনজেকশন
+            # টোকেন থেকে অতিরিক্ত কোটেশন বা স্পেস থাকলে তা আরও গভীরভাবে ক্লিন করার লজিক
+            clean_token = clean_token.replace("Bearer ", "").replace('"', '').replace("'", "").strip()
+            
+            # স্ট্যান্ডার্ড হেডার সেটআপ যা UMS গেটওয়ে রিকোয়েস্ট এক্সেপ্ট করে
             headers = {
                 "Authorization": f"Bearer {clean_token}",
                 "Accept": "application/json, text/plain, */*",
@@ -75,84 +87,94 @@ async def scan_matrix_node(target_number, clean_token):
             context = await browser.new_context(extra_http_headers=headers)
             page = await context.new_page()
             
-            # 🎯 আপনার টার্গেট UMS API বা এন্ডপয়েন্ট ইউআরএল এখানে বসাবেন
-            # উদাহরণ হিসেবে একটি ডামি ব্যালেন্স চেক এন্ডপয়েন্ট দেওয়া হলো:
+            # 🎯 টার্গেট রিকোয়েস্ট এন্ডপয়েন্ট ইউআরএল (প্রয়োজন অনুযায়ী পরিবর্তন করে নেবেন)
             api_url = f"https://ums.seu.edu.bd/api/student/balance-check?phone={target_number}"
             
-            response = await page.goto(api_url)
+            response = await page.goto(api_url, wait_until="networkidle", timeout=15000)
             status_code = response.status if response else 500
             
-            await browser.close()
-            
-            # টোকেন কাজ না করলে বা সার্ভার ডাউন থাকলে Unauthorized (401/403) রেসপন্স হ্যান্ডলিং
+            # টোকেন ভ্যালিডেশন চেক এবং রেসপন্স এনালাইসিস
             if status_code in [401, 403]:
+                await browser.close()
                 return {"status": "auth_error", "message": "Token Invalid or UMS Service Outage."}
-            elif status_code == 200:
-                # সফল হলে রেসপন্স ডাটা রিটার্ন করবে
+                
+            if status_code == 200:
                 try:
                     data = await response.json()
+                    await browser.close()
                     return {"status": "success", "data": data}
                 except:
-                    return {"status": "success", "data": "Account Active (No Data Payload)"}
+                    content = await response.text()
+                    await browser.close()
+                    return {"status": "success", "data": content[:100]}
             else:
-                return {"status": "failed", "message": f"Server responded with code {status_code}"}
+                await browser.close()
+                return {"status": "failed", "message": f"Server Status Code {status_code}"}
                 
         except Exception as e:
+            if 'browser' in locals():
+                await browser.close()
             return {"status": "error", "message": str(e)}
 
-# --- ফ্রন্টএন্ড লেআউট ও ইউজার ইনপুট প্যানেল ---
-st.subheader("🖥️ Cyber Live Matrix Terminal")
+# --- ফ্রন্টএন্ড প্যানেল ইন্টারফেস ---
+st.markdown("### 🖥️ Cyber Live Matrix Terminal")
 
-# টোকেন ইনপুট সেকশন
+# টোকেন ইনপুট সেশন স্টেট ম্যানেজমেন্ট
 if 'locked_token' not in st.session_state:
     st.session_state.locked_token = ""
 
 token_input = st.text_input("⚙️ System Authorization (Bearer Auth Token):", value=st.session_state.locked_token, type="password")
 
-col1, col2 = st.columns([1, 5])
+col1, col2 = st.columns([1.5, 5])
 with col1:
     if st.button("Save & Lock Token"):
         if token_input:
-            # 💡 আপনার রিকোয়েস্ট করা মূল টোকেন ক্লিনিং মেকানিজম:
-            # ইনপুট থেকে ডাবল 'Bearer ' বা অতিরিক্ত স্পেস থাকলে তা স্বয়ংক্রিয়ভাবে মুছে ফেলবে
+            # ইনপুট থেকে Bearer এবং স্পেস ক্লিয়ার করে সেশন স্টেটে সেভ করা
             st.session_state.locked_token = token_input.replace("Bearer ", "").strip()
-            st.success("Token Locked & Sanitized Securely!")
+            st.success("Authorization Synced Successfully!")
         else:
-            st.warning("Please input a valid token.")
+            st.warning("Input a valid token array.")
 
-# টার্গেট ডাটা ইনপুট সেকশন
+st.markdown("---")
+
+# টার্গেট ডাটা ইনপুট
 data_feed = st.text_area("📥 Data Feed Input (Paste Target Numbers):", height=150, placeholder="017XXXXXXXX\n013XXXXXXXX")
 
-# মোবাইল নম্বর ফিল্টার করার রেগুলার এক্সপ্রেশন (Regex)
+# বাংলাদেশী ফরম্যাটের মোবাইল নম্বর এক্সট্রাক্ট করার রেগুলার এক্সপ্রেশন
 target_numbers = re.findall(r'(?:013|014|015|016|017|018|019)\d{8}', data_feed)
 
-# স্ক্যান ট্রিগার বাটুন
+# কোর পাইপলাইন এক্সিকিউশন
 if st.button("🚀 Deploy Core Cluster Matrix Scan"):
     if not st.session_state.locked_token:
-        st.error("[CRITICAL ERROR]: No Token Found. Please lock your authorization token first.")
+        st.error("[CRITICAL ERROR]: No Security Token Found. Please lock authorization token first.")
     elif not target_numbers:
-        st.warning("[WARNING]: No valid target nodes/numbers detected in the data feed.")
+        st.warning("[WARNING]: Empty matrix feed. No valid numbers detected.")
     else:
-        terminal_output = ""
-        st.info(f"[SYSTEM LOG]: Initializing core cluster matrix pipeline for {len(target_numbers)} nodes...")
+        terminal_output = "[SYSTEM LOG]: Initializing core cluster matrix pipeline for 7 nodes...\n"
         
-        # লাইভ টার্মিনাল ডিসপ্লে বক্স
+        # রিয়েল-টাইম টার্মিনাল আপডেট করার জন্য প্লেসহোল্ডার
         terminal_placeholder = st.empty()
+        terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
+        
         success_accounts = []
         
-        # লুপ চালিয়ে প্রতিটি নম্বর স্ক্যান করা
+        # নোড স্ক্যান লুপ
         for number in target_numbers:
             terminal_output += f"[TARGET]: Scanning Matrix Node → {number}\n"
             terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
             
-            # এসিনক্রোনাস ফাংশন রান করা
+            # ব্যাকএন্ড ফাংশন রান
             result = asyncio.run(scan_matrix_node(number, st.session_state.locked_token))
             
             if result["status"] == "auth_error":
                 terminal_output += f" ├─ [AUTH MISM_ERR]: {result['message']}\n"
             elif result["status"] == "success":
-                terminal_output += f" ├─ [SUCCESS]: Node Verified. Data Connected.\n"
-                success_accounts.append({"Number": number, "Status": "Verified/Active", "Log": str(result["data"])})
+                terminal_output += f" ├─ [SUCCESS]: Node Verified. Data Payload Connected.\n"
+                success_accounts.append({
+                    "Node Target": number, 
+                    "Status": "Verified Active", 
+                    "Payload": str(result["data"])
+                })
             else:
                 terminal_output += f" ├─ [NODE_ERR]: {result['message']}\n"
                 
@@ -161,9 +183,9 @@ if st.button("🚀 Deploy Core Cluster Matrix Scan"):
         terminal_output += "[SYSTEM LOG]: Target Scan Deployment Terminal Sequence Over.\n"
         terminal_placeholder.markdown(f"<pre class='terminal-box'>{terminal_output}</pre>", unsafe_allow_html=True)
         
-        # সাকসেসফুল ডেটা গ্রিড শো করা
-        st.subheader("📊 Live Hits & Verified Accounts Grid")
+        # লাইভ হিট গ্রিড সেকশন
+        st.markdown("### 📊 Live Hits & Verified Accounts Grid")
         if success_accounts:
             st.dataframe(success_accounts, use_container_width=True)
         else:
-            st.markdown("<p style='color:#ff4b4b;'>No successful positive accounts registered yet in this session matrix.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ff4b4b; font-family:monospace;'>No successful positive accounts registered yet in this session matrix.</p>", unsafe_allow_html=True)
