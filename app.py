@@ -19,8 +19,9 @@ def install_playwright_dependencies():
         except ModuleNotFoundError:
             os.system(f"{sys.executable} -m pip install playwright")
         
-        # ক্লাউড বা লোকাল এনভায়রনমেন্টে ব্রাউজার বাইনারি নিশ্চিত করা
+        # সিস্টেম কনফ্লিক্ট এড়াতে প্লে-রাইটের অফিশিয়াল নো-রুট ইনস্টলার রান করা হচ্ছে
         os.system(f"{sys.executable} -m playwright install chromium")
+        os.system(f"{sys.executable} -m playwright install-deps chromium")
     return True
 
 install_playwright_dependencies()
